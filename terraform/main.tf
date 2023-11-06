@@ -14,6 +14,17 @@ provider "aws" {
   profile = "default"
 }
 
+# Create a subnet in the default VPC
+resource "aws_subnet" "default_vpc_subnet" {
+  vpc_id            = "vpc-088d0a8e4dcc326e9" // Your default VPC ID
+  cidr_block        = "172.31.1.0/24"           // Example CIDR block, adjust as necessary
+  availability_zone = "us-east-1a" // Use a variable to specify the availability zone
+
+  tags = {
+    Name = "default_vpc_subnet"
+  }
+}
+
 # Create security group for access to EC2 from your Anywhere
 resource "aws_security_group" "sde_security_group" {
   name        = "sde_security_group"
@@ -46,7 +57,7 @@ resource "aws_security_group" "sde_security_group" {
   }
 }
 
-# Create EC2 with IAM role to allow EMR, Redshift, & S3 access and security group 
+# Create an SSH key pair
 resource "tls_private_key" "custom_key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -57,6 +68,7 @@ resource "aws_key_pair" "generated_key" {
   public_key      = tls_private_key.custom_key.public_key_openssh
 }
 
+# Find the latest Ubuntu AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -73,12 +85,14 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
+# Create an EC2 instance
 resource "aws_instance" "sde_ec2" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.instance_type
+  subnet_id              = aws_subnet.default_vpc_subnet.id
+  vpc_security_group_ids = [aws_security_group.sde_security_group.id]
 
-  key_name        = aws_key_pair.generated_key.key_name
-  security_groups = [aws_security_group.sde_security_group.name]
+  key_name = aws_key_pair.generated_key.key_name
   tags = {
     Name = "sde_ec2"
   }
